@@ -17,28 +17,34 @@ jobs:
     env:
       CLUSTER_NAME: django-k8s
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v2
-      - name: Insall doctl
+
+      - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DO_API_TOKEN_KEY }}
-      - name: Login to DO Container Registry with short-lived creds
+      
+      - name: DO Container Registry Login
         run: doctl registry login --expiry-seconds 1200
-      - name: Build container image
+      
+      - name: Build Container Image
         working-directory: ./web
         run: |
           docker build -f Dockerfile \
             -t registry.digitalocean.com/cfe-k8s/django-k8s-web:latest \
             -t registry.digitalocean.com/cfe-k8s/django-k8s-web:${GITHUB_SHA::7}-${GITHUB_RUN_ID::5} \
             .
-      - name: Push image
+      
+      - name: Push Container Image to Registry
         run: |
           docker push registry.digitalocean.com/cfe-k8s/django-k8s-web --all-tags
-      - name: K8s cluster kubeconfig file with/ short-lived creds
+      
+      - name: K8s Cluster Kubeconfig File
         run: |
           doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ${{ env.CLUSTER_NAME }}
-      - name: Update deployment secrets
+      
+      - name: Update Deployment Secrets
         run: |
           cat << EOF >> web/.env.prod
           AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -56,9 +62,11 @@ jobs:
           EOF
           kubectl delete secret django-k8s-web-prod-env
           kubectl create secret generic django-k8s-web-prod-env --from-env-file=web/.env.prod
-      - name: Update Deployment image
+     
+      - name: Update Deployment Image
         run: |
           kubectl set image deployment/django-k8s-web-deployment django-k8s-web=registry.digitalocean.com/cfe-k8s/django-k8s-web:${GITHUB_SHA::7}-${GITHUB_RUN_ID::5}
+      
       - name: Wait for rollout to finish
         run: |
           kubectl rollout status deployment/django-k8s-web-deployment
